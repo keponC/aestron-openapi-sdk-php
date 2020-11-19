@@ -1,5 +1,5 @@
 {
-  "name": "aestron/aestron-openapi-sdk",
+  "name": "aestron/aestron-openapi-sdk-test",
   "version" : "1.0.0-dev",
   "description": "Aestron openapi sdk for PHP - Use Aestron openapi sdk client in your PHP project",
   "keywords": [

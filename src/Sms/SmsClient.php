@@ -2,8 +2,8 @@
 namespace AestronSdk\Sms;
 
 use AestronSdk\Exception\ClientException;
-use AestronSdk\Exception\ErrorCode;
 use GuzzleHttp\Client as httpClient;
+use GuzzleHttp\Exception\RequestException;
 
 /**
  * Class SmsClient
@@ -41,6 +41,12 @@ class SmsClient
     protected static $version = 2;
 
     /**
+     * last request params
+     * @var array
+     */
+    protected static $lastRequestParams;
+
+    /**
      * set appId for generate token
      * @param string $appId
      */
@@ -74,6 +80,16 @@ class SmsClient
         self::$host = $host;
     }
 
+    protected static function setLastRequestParam($params)
+    {
+        self::$lastRequestParams = $params;
+    }
+
+    public static function getLastRequestParam()
+    {
+        return self::$lastRequestParams;
+    }
+
     /**
      * send sms
      * @param $options
@@ -83,29 +99,26 @@ class SmsClient
     {
         if (empty($options['to']) || empty($options['content'])) {
             throw new ClientException(
-                'to or content cannot be empty',
-                ErrorCode::INVALID_ARGUMENT
+                'to or content cannot be empty'
             );
         }
         if (empty(self::$appId) || empty(self::$certificate)) {
             throw new ClientException(
-                'appId or certificate cannot be empty',
-                ErrorCode::INVALID_ACCESS_KEY
+                'appId or certificate cannot be empty'
             );
         }
         //  argument init
         //  if expireTime is invalid,  the default value is 30.
-        if (!isset($options['expireTime']) && !is_int($options['expireTime'])) {
-            $options['expireTime'] = 30;
+        if (!isset($options['expireTime']) || !is_int($options['expireTime'])) {
+            $options['expireTime'] = time() + 30;
         }
 
         //  encrypt token="version:appId:expiredTime:signature"
         $method     = "SmsService.sendSms";
         $fields     = "{$method}&{$options['to']}&{$options['content']}";
-        $expireTime = time() + $options['expireTime'];
+        $expireTime = $options['expireTime'];
         $signature  = Signature::sha1($fields . self::$appId . self::$certificate . $expireTime);
         $token      = self::$version . ":" . self::$appId . ":" . $expireTime . ":" . $signature;
-
         //  http post json
         $json = [
             'to'      => $options['to'],
@@ -114,31 +127,38 @@ class SmsClient
             'type'    => !empty($options['type']) ? $options['type'] : '',
             'session' => !empty($options['session']) ? $options['session'] : '',
         ];
+        self::setLastRequestParam([
+            'json' => $json,
+            'token' => $token
+        ]);
 
         //  http post request with token
         $httpClient = new HttpClient([
-            'base_uri' => self::$host,
-            'timeout'  => 2.0,
-        ]);
-        $res = $httpClient->post($method, [
-            'json' => $json,
-            'header' => [
-                'token' => $token,
+            'base_uri'    => self::$host,
+            'http_errors' => false,
+            'headers'     => [
+                'Content-type' => 'application/json',
+                'Accept'       => 'application/json',
+                'token'        => $token,
             ],
+            'timeout'     => self::$timeOut,
         ]);
-        $statusCode = $res->getStatusCode();
-        if ($statusCode == 401) {
+        try {
+            $res = $httpClient->post("SmsService/sendSms", [
+                'http_errors' => 'false',
+                'json' => $json,
+                'headers' => [
+                    'token' => $token,
+                ],
+            ]);
+            //  response as array
+            return json_decode($res->getBody(), true);
+
+        } catch (RequestException $e) {
             throw new ClientException(
-                'InvalidToken',
-                ErrorCode::INVALID_TOKEN
-            );
-        } elseif($statusCode != 200) {
-            throw new ClientException(
-                "Unknown error,http code={$statusCode},response={$res->getBody()}",
-                ErrorCode::SERVICE_UNKNOWN_ERROR
+                $e->getMessage(),
+                $e->getCode()
             );
         }
-        //  response as array
-        return json_decode($res->getBody(), true);
     }
 }

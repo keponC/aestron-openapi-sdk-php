@@ -1,6 +1,6 @@
 # aestron-openapi-sdk-php
 
-Use Aestron openapi sdk client in your PHP project。
+Use Aestron openapi sdk client in your PHP project
 
 ## Install
 

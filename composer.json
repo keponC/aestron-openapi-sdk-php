@@ -21,7 +21,6 @@
   "require-dev": {
   },
   "suggest": {
-    "ext-sockets": "To use client-side monitoring"
   },
   "autoload": {
     "psr-4": {
